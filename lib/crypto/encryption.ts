@@ -126,9 +126,25 @@ async function derivePasswordKey(password: string, salt: Uint8Array, iterations:
 }
 
 function toBase64(input: ArrayBuffer) {
-  return btoa(String.fromCharCode(...new Uint8Array(input)));
+  const bytes = new Uint8Array(input);
+  const chunkSize = 0x8000;
+  let binary = "";
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
 }
 
 function fromBase64(input: string) {
-  return Uint8Array.from(atob(input), (char) => char.charCodeAt(0)).buffer;
+  const binary = atob(input);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes.buffer;
 }
