@@ -38,45 +38,49 @@ export function buildVisibleExifLines(groups: Record<string, unknown>) {
   const image = readGroup(groups, "image");
   const file = readGroup(groups, "file");
 
-  const lines = [
+  return [
     buildSummaryLine("Camera", [
-      readTag(exif.LensModel),
-      readTag(image.Make),
-      readTag(image.Model)
+      readFirstTag(exif, ["LensModel"]),
+      readFirstTag(image, ["Make"]),
+      readFirstTag(image, ["Model"])
     ]),
     buildSummaryLine("Captured", [
-      readTag(exif.DateTimeOriginal),
-      readTag(exif.OffsetTimeOriginal)
+      readFirstTag(exif, ["DateTimeOriginal", "CreateDate", "DateTimeDigitized"]),
+      readFirstTag(exif, ["OffsetTimeOriginal", "TimeZoneOffset"])
     ]),
     buildSummaryLine("GPS", [
-      formatGpsCoordinate(readTag(gps.GPSLatitude), readTag(gps.GPSLatitudeRef)),
-      formatGpsCoordinate(readTag(gps.GPSLongitude), readTag(gps.GPSLongitudeRef))
+      formatGpsCoordinate(
+        readFirstTag(gps, ["GPSLatitude", "Latitude", "latitude"]),
+        readFirstTag(gps, ["GPSLatitudeRef", "LatitudeRef"])
+      ),
+      formatGpsCoordinate(
+        readFirstTag(gps, ["GPSLongitude", "Longitude", "longitude"]),
+        readFirstTag(gps, ["GPSLongitudeRef", "LongitudeRef"])
+      )
     ]),
-    buildSummaryLine("Altitude", [readTag(gps.GPSAltitude)]),
+    buildSummaryLine("Altitude", [readFirstTag(gps, ["GPSAltitude", "Altitude"])]),
     buildSummaryLine("Software", [
-      readTag(image.Software),
-      readTag(exif.Software),
-      readTag(file.Software)
+      readFirstTag(image, ["Software"]),
+      readFirstTag(exif, ["Software"]),
+      readFirstTag(file, ["Software", "FileType"])
     ]),
     buildSummaryLine("Device", [
-      readTag(image.HostComputer),
-      readTag(image.Artist)
+      readFirstTag(image, ["HostComputer", "Artist"])
     ]),
     buildSummaryLine("Exposure", [
-      readTag(exif.ExposureTime),
-      readTag(exif.FNumber),
-      readTag(exif.ISOSpeedRatings) || readTag(exif.ISO)
+      readFirstTag(exif, ["ExposureTime"]),
+      readFirstTag(exif, ["FNumber"]),
+      readFirstTag(exif, ["ISOSpeedRatings", "ISO"])
     ]),
     buildSummaryLine("Image", [
-      readTag(file.FileType),
-      readTag(image.Orientation),
-      readTag(image.XResolution),
-      readTag(image.YResolution)
+      readFirstTag(file, ["FileType"]),
+      readFirstTag(image, ["Orientation"]),
+      readFirstTag(image, ["XResolution"]),
+      readFirstTag(image, ["YResolution"])
     ])
-  ].filter((value): value is string => Boolean(value));
-
-  const rawLines = collectRawVisibleLines(groups);
-  return dedupeLines([...lines, ...rawLines]);
+  ]
+    .filter((value): value is string => Boolean(value))
+    .slice(0, 8);
 }
 
 function sortValue(value: unknown): unknown {
@@ -173,10 +177,6 @@ function readGroup(groups: Record<string, unknown>, key: string) {
   return group && typeof group === "object" ? (group as Record<string, unknown>) : {};
 }
 
-function readTag(entry: unknown) {
-  return extractVisibleValue(entry);
-}
-
 function buildSummaryLine(label: string, values: Array<string | undefined>) {
   const parts = values.filter((value): value is string => Boolean(value));
   if (!parts.length) {
@@ -194,27 +194,15 @@ function formatGpsCoordinate(value?: string, ref?: string) {
   return ref ? `${value} ${ref}` : value;
 }
 
-function collectRawVisibleLines(groups: Record<string, unknown>) {
-  const preferredGroups = ["gps", "exif", "image", "file"];
-  const lines: string[] = [];
-
-  for (const groupName of preferredGroups) {
-    const group = groups[groupName];
-    if (!group || typeof group !== "object") {
-      continue;
-    }
-
-    const entries = Object.entries(group as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, value]) => [formatTagName(key), extractVisibleValue(value)] as const)
-      .filter(([, value]) => Boolean(value));
-
-    for (const [key, value] of entries) {
-      lines.push(trimLine(`${key}: ${value}`));
+function readFirstTag(group: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = extractVisibleValue(group[key]);
+    if (value) {
+      return value;
     }
   }
 
-  return lines;
+  return undefined;
 }
 
 function readDescription(entry: unknown) {

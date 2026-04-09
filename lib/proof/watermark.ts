@@ -38,33 +38,30 @@ function drawWatermark(
   metadataLines: string[]
 ) {
   const padding = Math.max(18, Math.round(width * 0.03));
-  const titleSize = Math.max(18, Math.round(width * 0.038));
-  const bodySize = Math.max(12, Math.round(width * 0.017));
+  const titleSize = Math.max(20, Math.round(width * 0.042));
+  const bodySize = Math.max(14, Math.round(width * 0.022));
   const titleLineHeight = titleSize * 1.25;
-  const bodyLineHeight = bodySize * 1.25;
+  const bodyLineHeight = bodySize * 1.35;
   const stamp = `${label} • ${new Date().toISOString()}`;
-  const lines = [stamp, ...metadataLines];
-  const maxLinesPerColumn = Math.max(8, Math.floor((height - padding * 2) / bodyLineHeight) - 2);
-  const columns = chunkLines(lines.slice(1), maxLinesPerColumn);
-  const columnCount = Math.max(1, columns.length);
-  const panelWidth = Math.min(width - padding * 2, Math.max(width * 0.42, 280));
-  const gap = Math.max(10, Math.round(bodySize * 0.65));
-  const bodyTop = padding + titleLineHeight + gap;
-  const bodyHeight = Math.min(
-    height - padding * 2 - titleLineHeight - gap,
-    Math.max(...columns.map((column) => column.length), 1) * bodyLineHeight + gap
+  const panelWidth = Math.min(width - padding * 2, Math.max(width * 0.68, 320));
+  const wrappedTitle = wrapLine(context, stamp, panelWidth - padding, `700 ${titleSize}px Georgia, serif`);
+  const bodyLines = metadataLines.flatMap((line) =>
+    wrapLine(context, line, panelWidth - padding, `600 ${bodySize}px "Courier New", monospace`)
   );
-  const columnWidth = (panelWidth - gap * (columnCount - 1) - padding) / columnCount;
+  const visibleBodyLines = bodyLines.slice(0, 9);
+  const gap = Math.max(12, Math.round(bodySize * 0.8));
+  const bodyTop = padding + wrappedTitle.length * titleLineHeight + gap;
+  const bodyHeight = Math.max(visibleBodyLines.length, 1) * bodyLineHeight + gap;
 
   context.save();
   const boxWidth = panelWidth + padding;
   const boxHeight = bodyTop + bodyHeight + padding / 2;
-  const x = width - boxWidth - padding;
-  const y = Math.max(padding, height - boxHeight - padding);
+  const x = padding;
+  const y = padding;
 
-  context.fillStyle = "rgba(24, 20, 16, 0.4)";
+  context.fillStyle = "rgba(24, 20, 16, 0.56)";
   context.fillRect(x, y, boxWidth, boxHeight);
-  context.strokeStyle = "rgba(255, 248, 240, 0.22)";
+  context.strokeStyle = "rgba(255, 248, 240, 0.34)";
   context.strokeRect(x, y, boxWidth, boxHeight);
 
   context.textBaseline = "top";
@@ -72,19 +69,19 @@ function drawWatermark(
   context.strokeStyle = "rgba(24, 20, 16, 0.35)";
   context.lineWidth = Math.max(2, Math.round(titleSize * 0.06));
   context.font = `700 ${titleSize}px Georgia, serif`;
-  context.strokeText(stamp, x + padding / 2, y + padding / 2);
-  context.fillText(stamp, x + padding / 2, y + padding / 2);
+  wrappedTitle.forEach((line, index) => {
+    const lineY = y + padding / 2 + index * titleLineHeight;
+    context.strokeText(line, x + padding / 2, lineY);
+    context.fillText(line, x + padding / 2, lineY);
+  });
 
   context.font = `500 ${bodySize}px "Courier New", monospace`;
   context.lineWidth = Math.max(1, Math.round(bodySize * 0.05));
 
-  columns.forEach((column, columnIndex) => {
-    column.forEach((line, lineIndex) => {
-      const lineX = x + padding / 2 + columnIndex * (columnWidth + gap);
-      const lineY = y + bodyTop + lineIndex * bodyLineHeight;
-      context.strokeText(line, lineX, lineY);
-      context.fillText(line, lineX, lineY);
-    });
+  visibleBodyLines.forEach((line, lineIndex) => {
+    const lineY = y + bodyTop + lineIndex * bodyLineHeight;
+    context.strokeText(line, x + padding / 2, lineY);
+    context.fillText(line, x + padding / 2, lineY);
   });
 
   context.restore();
@@ -95,16 +92,33 @@ function replaceExtension(filename: string, suffix: string) {
   return lastDot === -1 ? `${filename}.${suffix}` : `${filename.slice(0, lastDot)}.${suffix}`;
 }
 
-function chunkLines(lines: string[], size: number) {
-  if (lines.length === 0) {
-    return [[]];
+function wrapLine(
+  context: CanvasRenderingContext2D,
+  value: string,
+  maxWidth: number,
+  font: string
+) {
+  context.save();
+  context.font = font;
+
+  const words = value.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    if (context.measureText(candidate).width <= maxWidth || currentLine === "") {
+      currentLine = candidate;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
   }
 
-  const chunks: string[][] = [];
-
-  for (let index = 0; index < lines.length; index += size) {
-    chunks.push(lines.slice(index, index + size));
+  if (currentLine) {
+    lines.push(currentLine);
   }
 
-  return chunks;
+  context.restore();
+  return lines;
 }
