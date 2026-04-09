@@ -32,6 +32,29 @@ export function manifestPayloadForSigning(
   return canonicalizeValue(manifest);
 }
 
+export function buildVisibleExifLines(groups: Record<string, unknown>) {
+  const preferredGroups = ["gps", "exif", "image", "file"];
+  const lines: string[] = [];
+
+  for (const groupName of preferredGroups) {
+    const group = groups[groupName];
+    if (!group || typeof group !== "object") {
+      continue;
+    }
+
+    const entries = Object.entries(group as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => [formatTagName(key), extractVisibleValue(value)] as const)
+      .filter(([, value]) => Boolean(value));
+
+    for (const [key, value] of entries) {
+      lines.push(trimLine(`${key}: ${value}`));
+    }
+  }
+
+  return dedupeLines(lines);
+}
+
 function sortValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(sortValue);
@@ -57,6 +80,68 @@ function removeUndefined<T extends Record<string, unknown>>(value: T) {
 
     return accumulator;
   }, {}) as T;
+}
+
+function dedupeLines(lines: string[]) {
+  return [...new Set(lines)];
+}
+
+function trimLine(value: string) {
+  return value.length > 120 ? `${value.slice(0, 117)}...` : value;
+}
+
+function formatTagName(value: string) {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ");
+}
+
+function extractVisibleValue(entry: unknown): string | undefined {
+  if (entry === null || entry === undefined) {
+    return undefined;
+  }
+
+  if (typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean") {
+    return String(entry);
+  }
+
+  if (Array.isArray(entry)) {
+    const joined = entry
+      .map((item) => extractVisibleValue(item))
+      .filter((item): item is string => Boolean(item))
+      .join(", ");
+    return joined || undefined;
+  }
+
+  if (typeof entry === "object") {
+    const candidate = entry as {
+      description?: unknown;
+      value?: unknown;
+      id?: unknown;
+    };
+
+    if (typeof candidate.description === "string" || typeof candidate.description === "number") {
+      return String(candidate.description);
+    }
+
+    if (
+      typeof candidate.value === "string" ||
+      typeof candidate.value === "number" ||
+      typeof candidate.value === "boolean"
+    ) {
+      return String(candidate.value);
+    }
+
+    if (Array.isArray(candidate.value)) {
+      const joined = candidate.value
+        .map((item) => extractVisibleValue(item))
+        .filter((item): item is string => Boolean(item))
+        .join(", ");
+      return joined || undefined;
+    }
+  }
+
+  return undefined;
 }
 
 function readDescription(entry: unknown) {

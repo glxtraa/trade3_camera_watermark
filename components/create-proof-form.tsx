@@ -4,7 +4,11 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import ExifReader from "exifreader";
 import { getEncryptionProvider } from "@/lib/crypto/encryption";
-import { normalizeExifSubset, canonicalizeValue } from "@/lib/proof/canonical";
+import {
+  normalizeExifSubset,
+  canonicalizeValue,
+  buildVisibleExifLines
+} from "@/lib/proof/canonical";
 import { sha256Hex } from "@/lib/proof/hash";
 import { createWatermarkedJpeg } from "@/lib/proof/watermark";
 import type { PrivateProvenanceBundle } from "@/lib/proof/types";
@@ -45,13 +49,14 @@ export function CreateProofForm() {
 
     try {
       const exifTags = await ExifReader.load(file, { expanded: true });
+      const visibleExifLines = buildVisibleExifLines(exifTags as unknown as Record<string, unknown>);
       const exifSubset = normalizeExifSubset({
         ...(exifTags.exif ?? {}),
         ...(exifTags.gps ?? {})
       });
       const originalImageHash = await sha256Hex(await file.arrayBuffer());
 
-      const watermarkedFile = await createWatermarkedJpeg(file, watermarkLabel);
+      const watermarkedFile = await createWatermarkedJpeg(file, watermarkLabel, visibleExifLines);
       const watermarkedImageHash = await sha256Hex(await watermarkedFile.arrayBuffer());
       const exifSubsetHash = await sha256Hex(canonicalizeValue(exifSubset));
 
