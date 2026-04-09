@@ -53,3 +53,10 @@ export interface PrivateProvenanceBundle {
   exif: Record<string, unknown>;
   notes?: string;
 }
+
+export interface EncryptedBinaryAsset {
+  filename: string;
+  contentType: string;
+  ciphertextBase64: string;
+  metadata: EncryptionMetadata;
+}

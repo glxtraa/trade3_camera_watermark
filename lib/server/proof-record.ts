@@ -2,7 +2,7 @@ import path from "node:path";
 import { list } from "@vercel/blob";
 import { putAsset, putJson, readAsset, readJson } from "@/lib/server/blob-store";
 import { manifestPayloadForSigning } from "@/lib/proof/canonical";
-import type { PublicProofManifest } from "@/lib/proof/types";
+import type { EncryptedBinaryAsset, PublicProofManifest } from "@/lib/proof/types";
 import { signManifestPayload, verifyManifestPayload } from "@/lib/server/signature";
 
 const localRoot = "/tmp/trade3-camera-watermark/proofs";
@@ -23,15 +23,14 @@ export interface CreateProofInput {
       iterations: number;
     };
   };
-  watermarkedFile: File;
+  encryptedWatermarkedAsset: EncryptedBinaryAsset;
 }
 
 export async function createProofRecord(input: CreateProofInput) {
   const id = crypto.randomUUID();
-  const watermarkedAsset = await putAsset(
-    `proofs/${id}/watermarked.jpg`,
-    input.watermarkedFile,
-    input.watermarkedFile.type || "image/jpeg",
+  const watermarkedAsset = await putJson(
+    `proofs/${id}/watermarked.json`,
+    input.encryptedWatermarkedAsset,
     "public"
   );
   const encryptedBundle = await putJson(
@@ -73,7 +72,7 @@ export async function createProofRecord(input: CreateProofInput) {
     id,
     verifyUrl: `/verify?id=${id}`,
     manifestUrl: manifestAsset.locator,
-    watermarkedUrl: `/api/proofs/${id}/watermarked`
+    protectedImageUrl: `/api/proofs/${id}/watermarked`
   };
 }
 
@@ -117,7 +116,7 @@ export async function getWatermarkedAsset(id: string) {
     return null;
   }
 
-  return readAsset(record.manifest.storage.watermarkedAsset);
+  return readJson(record.manifest.storage.watermarkedAsset);
 }
 
 async function findManifestDescriptor(id: string) {

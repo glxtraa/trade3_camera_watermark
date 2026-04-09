@@ -6,17 +6,15 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const watermarkedFile = formData.get("watermarkedFile");
     const encryptedBundle = formData.get("encryptedBundle");
+    const encryptedWatermarkedAsset = formData.get("encryptedWatermarkedAsset");
     const originalImageHash = formData.get("originalImageHash");
     const watermarkedImageHash = formData.get("watermarkedImageHash");
     const exifSubsetHash = formData.get("exifSubsetHash");
     const watermarkLabel = formData.get("watermarkLabel");
 
-    if (!(watermarkedFile instanceof File)) {
-      return NextResponse.json({ error: "Missing watermarked file." }, { status: 400 });
-    }
-
     if (
       typeof encryptedBundle !== "string" ||
+      typeof encryptedWatermarkedAsset !== "string" ||
       typeof originalImageHash !== "string" ||
       typeof watermarkedImageHash !== "string" ||
       typeof exifSubsetHash !== "string" ||
@@ -26,8 +24,8 @@ export async function POST(request: Request) {
     }
 
     const result = await createProofRecord({
-      watermarkedFile,
       encryptedBundle: JSON.parse(encryptedBundle),
+      encryptedWatermarkedAsset: JSON.parse(encryptedWatermarkedAsset),
       originalImageHash,
       watermarkedImageHash,
       exifSubsetHash,

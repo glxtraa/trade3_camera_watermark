@@ -1,9 +1,20 @@
-import type { EncryptionMetadata, PrivateProvenanceBundle } from "@/lib/proof/types";
+import type {
+  EncryptedBinaryAsset,
+  EncryptionMetadata,
+  PrivateProvenanceBundle
+} from "@/lib/proof/types";
 
 export interface EncryptionProvider {
   kind: EncryptionMetadata["kind"];
   encrypt(bundle: PrivateProvenanceBundle, password: string): Promise<EncryptedBundle>;
   decrypt(bundle: EncryptedBundle, password: string): Promise<PrivateProvenanceBundle>;
+  encryptBytes(
+    bytes: ArrayBuffer,
+    password: string,
+    filename: string,
+    contentType: string
+  ): Promise<EncryptedBinaryAsset>;
+  decryptBytes(asset: EncryptedBinaryAsset, password: string): Promise<ArrayBuffer>;
 }
 
 export interface EncryptedBundle {
@@ -15,17 +26,57 @@ export class PasswordEncryptionProvider implements EncryptionProvider {
   kind = "password-aes-gcm" as const;
 
   async encrypt(bundle: PrivateProvenanceBundle, password: string): Promise<EncryptedBundle> {
+    const plaintext = new TextEncoder().encode(JSON.stringify(bundle));
+    return encryptPayload(plaintext.buffer, password, this.kind);
+  }
+
+  async decrypt(bundle: EncryptedBundle, password: string): Promise<PrivateProvenanceBundle> {
+    const plaintext = await decryptPayload(bundle, password);
+    return JSON.parse(new TextDecoder().decode(plaintext)) as PrivateProvenanceBundle;
+  }
+
+  async encryptBytes(
+    bytes: ArrayBuffer,
+    password: string,
+    filename: string,
+    contentType: string
+  ): Promise<EncryptedBinaryAsset> {
+    const encrypted = await encryptPayload(bytes, password, this.kind);
+
+    return {
+      filename,
+      contentType,
+      ciphertextBase64: encrypted.ciphertextBase64,
+      metadata: encrypted.metadata
+    };
+  }
+
+  async decryptBytes(asset: EncryptedBinaryAsset, password: string): Promise<ArrayBuffer> {
+    return decryptPayload(
+      {
+        ciphertextBase64: asset.ciphertextBase64,
+        metadata: asset.metadata
+      },
+      password
+    );
+  }
+}
+
+async function encryptPayload(
+  plaintextBuffer: ArrayBuffer,
+  password: string,
+  kind: EncryptionMetadata["kind"]
+): Promise<EncryptedBundle> {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const iterations = 250000;
     const key = await derivePasswordKey(password, salt, iterations);
-    const plaintext = new TextEncoder().encode(JSON.stringify(bundle));
-    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintextBuffer);
 
     return {
       ciphertextBase64: toBase64(ciphertext),
       metadata: {
-        kind: this.kind,
+        kind,
         algorithm: "AES-GCM",
         kdf: "PBKDF2",
         saltBase64: toBase64(salt.buffer),
@@ -35,18 +86,11 @@ export class PasswordEncryptionProvider implements EncryptionProvider {
     };
   }
 
-  async decrypt(bundle: EncryptedBundle, password: string): Promise<PrivateProvenanceBundle> {
-    const salt = new Uint8Array(fromBase64(bundle.metadata.saltBase64));
-    const iv = new Uint8Array(fromBase64(bundle.metadata.ivBase64));
-    const key = await derivePasswordKey(password, salt, bundle.metadata.iterations);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
-      key,
-      fromBase64(bundle.ciphertextBase64)
-    );
-
-    return JSON.parse(new TextDecoder().decode(plaintext)) as PrivateProvenanceBundle;
-  }
+async function decryptPayload(bundle: EncryptedBundle, password: string) {
+  const salt = new Uint8Array(fromBase64(bundle.metadata.saltBase64));
+  const iv = new Uint8Array(fromBase64(bundle.metadata.ivBase64));
+  const key = await derivePasswordKey(password, salt, bundle.metadata.iterations);
+  return crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, fromBase64(bundle.ciphertextBase64));
 }
 
 export function getEncryptionProvider(kind: EncryptionMetadata["kind"]) {

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getEncryptionProvider, type EncryptedBundle } from "@/lib/crypto/encryption";
 import { sha256Hex } from "@/lib/proof/hash";
-import type { PublicProofManifest } from "@/lib/proof/types";
+import type { EncryptedBinaryAsset, PublicProofManifest } from "@/lib/proof/types";
 
 interface LoadedRecord {
   manifest: PublicProofManifest;
@@ -23,6 +23,7 @@ export function VerifyProofForm() {
   const [verificationResult, setVerificationResult] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [decryptedBundle, setDecryptedBundle] = useState<string | null>(null);
+  const [protectedPreviewUrl, setProtectedPreviewUrl] = useState<string | null>(null);
 
   const previewUrl = useMemo(
     () => (candidateFile ? URL.createObjectURL(candidateFile) : null),
@@ -40,6 +41,7 @@ export function VerifyProofForm() {
     setError(null);
     setVerificationResult(null);
     setDecryptedBundle(null);
+    setProtectedPreviewUrl(null);
 
     try {
       const response = await fetch(`/api/proofs/${id}`);
@@ -120,6 +122,50 @@ export function VerifyProofForm() {
     }
   }
 
+  async function decryptProtectedImage() {
+    if (!record) {
+      setError("Load a proof record before decrypting the image.");
+      return;
+    }
+
+    if (!password) {
+      setError("Enter the image password.");
+      return;
+    }
+
+    setStatus("Fetching protected image...");
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/proofs/${record.manifest.id}/watermarked`, {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch protected image package.");
+      }
+
+      const payload = (await response.json()) as EncryptedBinaryAsset;
+      const provider = getEncryptionProvider("password-aes-gcm");
+      const decryptedBytes = await provider.decryptBytes(payload, password);
+      const hash = await sha256Hex(decryptedBytes);
+
+      if (hash !== record.manifest.watermarkedImageHash) {
+        throw new Error("Decrypted image does not match the signed proof record.");
+      }
+
+      const blob = new Blob([decryptedBytes], { type: payload.contentType });
+      setProtectedPreviewUrl(URL.createObjectURL(blob));
+      setVerificationResult("Authentic: protected image decrypted and matched the signed proof.");
+      setStatus("Protected image decrypted.");
+    } catch (decryptError) {
+      setProtectedPreviewUrl(null);
+      setStatus(null);
+      setError(
+        decryptError instanceof Error ? decryptError.message : "Failed to decrypt protected image."
+      );
+    }
+  }
+
   return (
     <div className="panel-grid create-grid">
       <section className="panel">
@@ -156,6 +202,14 @@ export function VerifyProofForm() {
           <button type="button" className="button secondary" onClick={() => void verifyCandidate()}>
             Verify candidate image
           </button>
+
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void decryptProtectedImage()}
+          >
+            Decrypt protected image
+          </button>
         </div>
 
         {record ? (
@@ -176,7 +230,17 @@ export function VerifyProofForm() {
 
       <section className="panel">
         <p className="eyebrow">Protected provenance</p>
-        <h2>Optional decryption</h2>
+        <h2>Protected image and bundle</h2>
+        {protectedPreviewUrl ? (
+          <Image
+            src={protectedPreviewUrl}
+            alt="Decrypted protected preview"
+            width={1200}
+            height={900}
+            className="preview"
+            unoptimized
+          />
+        ) : null}
         {previewUrl ? (
           <Image
             src={previewUrl}
@@ -190,7 +254,7 @@ export function VerifyProofForm() {
 
         <div className="stack">
           <label className="field">
-            <span>Bundle password</span>
+            <span>Password</span>
             <input
               type="password"
               value={password}

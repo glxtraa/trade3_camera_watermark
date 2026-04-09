@@ -9,6 +9,7 @@ import {
   canonicalizeValue,
   buildVisibleExifLines
 } from "@/lib/proof/canonical";
+import type { EncryptedBinaryAsset } from "@/lib/proof/types";
 import { sha256Hex } from "@/lib/proof/hash";
 import { createWatermarkedJpeg } from "@/lib/proof/watermark";
 import type { PrivateProvenanceBundle } from "@/lib/proof/types";
@@ -17,7 +18,7 @@ interface ResultState {
   id: string;
   verifyUrl: string;
   manifestUrl: string;
-  watermarkedUrl: string;
+  protectedImageUrl: string;
 }
 
 export function CreateProofForm() {
@@ -68,15 +69,19 @@ export function CreateProofForm() {
       };
 
       setStatus("Encrypting provenance bundle...");
-      const encryptedBundle = await getEncryptionProvider("password-aes-gcm").encrypt(
-        bundle,
-        password
+      const provider = getEncryptionProvider("password-aes-gcm");
+      const encryptedBundle = await provider.encrypt(bundle, password);
+      const encryptedWatermarkedAsset: EncryptedBinaryAsset = await provider.encryptBytes(
+        await watermarkedFile.arrayBuffer(),
+        password,
+        watermarkedFile.name,
+        watermarkedFile.type || "image/jpeg"
       );
 
       setStatus("Uploading proof record...");
       const formData = new FormData();
-      formData.set("watermarkedFile", watermarkedFile);
       formData.set("encryptedBundle", JSON.stringify(encryptedBundle));
+      formData.set("encryptedWatermarkedAsset", JSON.stringify(encryptedWatermarkedAsset));
       formData.set("originalImageHash", originalImageHash);
       formData.set("watermarkedImageHash", watermarkedImageHash);
       formData.set("exifSubsetHash", exifSubsetHash);
@@ -172,8 +177,8 @@ export function CreateProofForm() {
             <a href={result.verifyUrl} className="button secondary">
               Open verification page
             </a>
-            <a href={result.watermarkedUrl} className="button secondary">
-              Open watermarked image
+            <a href={result.protectedImageUrl} className="button secondary">
+              Download encrypted image package
             </a>
           </div>
         ) : null}
