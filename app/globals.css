@@ -149,6 +149,13 @@ li + li {
   color: var(--muted);
 }
 
+.field-hint {
+  margin: -0.35rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .field input {
   min-height: 2.9rem;
   padding: 0.75rem 0.9rem;

@@ -49,7 +49,7 @@ export function CreateProofForm() {
     setResult(null);
 
     if (!file) {
-      setError("Choose a photo first.");
+      setError("Take a picture first.");
       return;
     }
 
@@ -157,7 +157,7 @@ export function CreateProofForm() {
 
         <form onSubmit={handleSubmit} className="stack">
           <label className="field">
-            <span>Photo</span>
+            <span>Take picture</span>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/heic"
@@ -165,6 +165,9 @@ export function CreateProofForm() {
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
+          <p className="field-hint">
+            On mobile this opens the camera first. You can still choose an existing image if needed.
+          </p>
 
           <label className="field">
             <span>Watermark label</span>
@@ -197,7 +200,7 @@ export function CreateProofForm() {
 
       <section className="panel">
         <p className="eyebrow">Share</p>
-        <h2>Selected image</h2>
+        <h2>Picture preview</h2>
         {previewUrl ? (
           <Image
             src={previewUrl}
@@ -208,7 +211,7 @@ export function CreateProofForm() {
             unoptimized
           />
         ) : null}
-        {!previewUrl ? <p className="lede">No image selected yet.</p> : null}
+        {!previewUrl ? <p className="lede">No picture captured yet.</p> : null}
 
         {result ? (
           <div className="result-card">
