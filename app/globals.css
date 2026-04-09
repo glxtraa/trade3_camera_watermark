@@ -201,6 +201,13 @@ li + li {
   border: 1px solid var(--line);
 }
 
+.meta-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
 .code-block {
   margin: 1rem 0 0;
   padding: 1rem;

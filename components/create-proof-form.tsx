@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ExifReader from "exifreader";
 import { getEncryptionProvider } from "@/lib/crypto/encryption";
 import {
@@ -29,6 +29,8 @@ export function CreateProofForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [metadataPreview, setMetadataPreview] = useState<string[]>([]);
+  const [metadataStatus, setMetadataStatus] = useState<string | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const shareUrl = useMemo(() => {
@@ -42,6 +44,49 @@ export function CreateProofForm() {
 
     return new URL(result.verifyUrl, window.location.origin).toString();
   }, [result]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMetadataPreview() {
+      if (!file) {
+        setMetadataPreview([]);
+        setMetadataStatus(null);
+        return;
+      }
+
+      setMetadataStatus("Reading metadata from captured image...");
+
+      try {
+        const exifTags = await ExifReader.load(file, { expanded: true });
+        const lines = buildVisibleExifLines(exifTags as unknown as Record<string, unknown>);
+
+        if (cancelled) {
+          return;
+        }
+
+        setMetadataPreview(lines);
+        setMetadataStatus(
+          lines.length
+            ? "These are the metadata lines that will be stamped onto the protected image."
+            : "No readable EXIF/GPS metadata was found in this image."
+        );
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setMetadataPreview([]);
+        setMetadataStatus("This image does not expose readable metadata to the browser.");
+      }
+    }
+
+    void loadMetadataPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -212,6 +257,23 @@ export function CreateProofForm() {
           />
         ) : null}
         {!previewUrl ? <p className="lede">No picture captured yet.</p> : null}
+        {metadataStatus ? <p className="status">{metadataStatus}</p> : null}
+        {metadataPreview.length ? (
+          <div className="result-card">
+            <h2>Metadata found immediately after capture</h2>
+            <ul className="meta-list">
+              {metadataPreview.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            {!metadataPreview.some((line) => line.startsWith("GPS:")) ? (
+              <p className="lede">
+                GPS was not found in this file. That usually means location data
+                was not saved by the camera or was stripped before upload.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {result ? (
           <div className="result-card">
