@@ -33,26 +33,50 @@ export function manifestPayloadForSigning(
 }
 
 export function buildVisibleExifLines(groups: Record<string, unknown>) {
-  const preferredGroups = ["gps", "exif", "image", "file"];
-  const lines: string[] = [];
+  const gps = readGroup(groups, "gps");
+  const exif = readGroup(groups, "exif");
+  const image = readGroup(groups, "image");
+  const file = readGroup(groups, "file");
 
-  for (const groupName of preferredGroups) {
-    const group = groups[groupName];
-    if (!group || typeof group !== "object") {
-      continue;
-    }
+  const lines = [
+    buildSummaryLine("Camera", [
+      readTag(exif.LensModel),
+      readTag(image.Make),
+      readTag(image.Model)
+    ]),
+    buildSummaryLine("Captured", [
+      readTag(exif.DateTimeOriginal),
+      readTag(exif.OffsetTimeOriginal)
+    ]),
+    buildSummaryLine("GPS", [
+      formatGpsCoordinate(readTag(gps.GPSLatitude), readTag(gps.GPSLatitudeRef)),
+      formatGpsCoordinate(readTag(gps.GPSLongitude), readTag(gps.GPSLongitudeRef))
+    ]),
+    buildSummaryLine("Altitude", [readTag(gps.GPSAltitude)]),
+    buildSummaryLine("Software", [
+      readTag(image.Software),
+      readTag(exif.Software),
+      readTag(file.Software)
+    ]),
+    buildSummaryLine("Device", [
+      readTag(image.HostComputer),
+      readTag(image.Artist)
+    ]),
+    buildSummaryLine("Exposure", [
+      readTag(exif.ExposureTime),
+      readTag(exif.FNumber),
+      readTag(exif.ISOSpeedRatings) || readTag(exif.ISO)
+    ]),
+    buildSummaryLine("Image", [
+      readTag(file.FileType),
+      readTag(image.Orientation),
+      readTag(image.XResolution),
+      readTag(image.YResolution)
+    ])
+  ].filter((value): value is string => Boolean(value));
 
-    const entries = Object.entries(group as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, value]) => [formatTagName(key), extractVisibleValue(value)] as const)
-      .filter(([, value]) => Boolean(value));
-
-    for (const [key, value] of entries) {
-      lines.push(trimLine(`${key}: ${value}`));
-    }
-  }
-
-  return dedupeLines(lines);
+  const rawLines = collectRawVisibleLines(groups);
+  return dedupeLines([...lines, ...rawLines]);
 }
 
 function sortValue(value: unknown): unknown {
@@ -142,6 +166,55 @@ function extractVisibleValue(entry: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function readGroup(groups: Record<string, unknown>, key: string) {
+  const group = groups[key];
+  return group && typeof group === "object" ? (group as Record<string, unknown>) : {};
+}
+
+function readTag(entry: unknown) {
+  return extractVisibleValue(entry);
+}
+
+function buildSummaryLine(label: string, values: Array<string | undefined>) {
+  const parts = values.filter((value): value is string => Boolean(value));
+  if (!parts.length) {
+    return undefined;
+  }
+
+  return trimLine(`${label}: ${parts.join(" | ")}`);
+}
+
+function formatGpsCoordinate(value?: string, ref?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  return ref ? `${value} ${ref}` : value;
+}
+
+function collectRawVisibleLines(groups: Record<string, unknown>) {
+  const preferredGroups = ["gps", "exif", "image", "file"];
+  const lines: string[] = [];
+
+  for (const groupName of preferredGroups) {
+    const group = groups[groupName];
+    if (!group || typeof group !== "object") {
+      continue;
+    }
+
+    const entries = Object.entries(group as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => [formatTagName(key), extractVisibleValue(value)] as const)
+      .filter(([, value]) => Boolean(value));
+
+    for (const [key, value] of entries) {
+      lines.push(trimLine(`${key}: ${value}`));
+    }
+  }
+
+  return lines;
 }
 
 function readDescription(entry: unknown) {
