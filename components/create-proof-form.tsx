@@ -28,8 +28,20 @@ export function CreateProofForm() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  const shareUrl = useMemo(() => {
+    if (!result) {
+      return "";
+    }
+
+    if (typeof window === "undefined") {
+      return result.verifyUrl;
+    }
+
+    return new URL(result.verifyUrl, window.location.origin).toString();
+  }, [result]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,21 +110,49 @@ export function CreateProofForm() {
       }
 
       setResult(payload as ResultState);
-      setStatus("Proof created.");
+      setCopied(false);
+      setStatus("Proof created. Share the verification link and send the password separately.");
     } catch (submitError) {
       setStatus(null);
       setError(submitError instanceof Error ? submitError.message : "Proof creation failed.");
     }
   }
 
+  async function handleCopyLink() {
+    if (!shareUrl) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+  }
+
+  async function handleShareLink() {
+    if (!shareUrl) {
+      return;
+    }
+
+    if (navigator.share) {
+      await navigator.share({
+        title: "Trade3 proof link",
+        text: "Open this link and enter the password to view and authenticate the image.",
+        url: shareUrl
+      });
+      return;
+    }
+
+    await handleCopyLink();
+  }
+
   return (
     <div className="panel-grid create-grid">
       <section className="panel">
         <p className="eyebrow">Capture</p>
-        <h1>Create a proof record</h1>
+        <h1>Create a protected proof</h1>
         <p className="lede">
-          Select or capture a photo, set the visible watermark text, and protect
-          the provenance bundle with a password before upload.
+          Take a photo, choose a password, and create one link you can send to
+          someone else. They will open the link, enter the password, and the app
+          will show and authenticate the protected image.
         </p>
 
         <form onSubmit={handleSubmit} className="stack">
@@ -137,7 +177,7 @@ export function CreateProofForm() {
           </label>
 
           <label className="field">
-            <span>Bundle password</span>
+            <span>Password for recipient access</span>
             <input
               type="password"
               value={password}
@@ -156,7 +196,7 @@ export function CreateProofForm() {
       </section>
 
       <section className="panel">
-        <p className="eyebrow">Preview</p>
+        <p className="eyebrow">Share</p>
         <h2>Selected image</h2>
         {previewUrl ? (
           <Image
@@ -172,14 +212,25 @@ export function CreateProofForm() {
 
         {result ? (
           <div className="result-card">
-            <h2>Proof created</h2>
+            <h2>Send this link</h2>
+            <p className="lede">
+              Anyone with this link can open the proof page. Only someone with
+              the password can unlock and authenticate the image.
+            </p>
+            <label className="field">
+              <span>Verification link</span>
+              <input type="text" readOnly value={shareUrl} />
+            </label>
+            <div className="actions">
+              <button type="button" className="button primary" onClick={() => void handleShareLink()}>
+                Share link
+              </button>
+              <button type="button" className="button secondary" onClick={() => void handleCopyLink()}>
+                {copied ? "Copied" : "Copy link"}
+              </button>
+            </div>
+            <p className="lede">Send the password separately, not in the same message.</p>
             <p className="lede">Record id: {result.id}</p>
-            <a href={result.verifyUrl} className="button secondary">
-              Open verification page
-            </a>
-            <a href={result.protectedImageUrl} className="button secondary">
-              Download encrypted image package
-            </a>
           </div>
         ) : null}
       </section>

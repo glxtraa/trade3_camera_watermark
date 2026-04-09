@@ -8,9 +8,9 @@ export default function HomePage() {
         <p className="eyebrow">Trade3 Proof Camera</p>
         <h1>Vercel-first image authenticity, built to evolve later.</h1>
         <p className="lede">
-          The MVP captures a mobile photo, produces a watermarked derivative,
-          protects the private provenance bundle with password-based encryption,
-          and verifies authenticity from a signed public record.
+          Take a photo, protect it with a password, and share one verification
+          link. The recipient opens the link, enters the password, and the app
+          reveals and authenticates the image.
         </p>
         <div className="actions">
           <Link href="/create" className="button primary">

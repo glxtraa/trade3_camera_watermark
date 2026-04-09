@@ -24,6 +24,8 @@ export function VerifyProofForm() {
   const [password, setPassword] = useState("");
   const [decryptedBundle, setDecryptedBundle] = useState<string | null>(null);
   const [protectedPreviewUrl, setProtectedPreviewUrl] = useState<string | null>(null);
+  const [showManualCompare, setShowManualCompare] = useState(false);
+  const [showBundle, setShowBundle] = useState(false);
 
   const previewUrl = useMemo(
     () => (candidateFile ? URL.createObjectURL(candidateFile) : null),
@@ -113,6 +115,7 @@ export function VerifyProofForm() {
       const decrypted = await getEncryptionProvider("password-aes-gcm").decrypt(payload, password);
 
       setDecryptedBundle(JSON.stringify(decrypted, null, 2));
+      setShowBundle(true);
       setStatus("Private bundle decrypted.");
     } catch (decryptError) {
       setStatus(null);
@@ -169,11 +172,11 @@ export function VerifyProofForm() {
   return (
     <div className="panel-grid create-grid">
       <section className="panel">
-        <p className="eyebrow">Lookup</p>
-        <h1>Verify a shared image</h1>
+        <p className="eyebrow">Unlock</p>
+        <h1>Open and authenticate the protected image</h1>
         <p className="lede">
-          Load a proof id, compare the candidate file against the signed record,
-          and optionally decrypt the protected provenance bundle with the password.
+          Open the shared proof link, enter the password, and the app will
+          decrypt the protected image and verify it against the signed proof.
         </p>
 
         <div className="stack">
@@ -189,37 +192,66 @@ export function VerifyProofForm() {
           <button type="button" className="button primary" onClick={() => void loadRecord()}>
             Load proof
           </button>
-
-          <label className="field">
-            <span>Candidate image</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic"
-              onChange={(event) => setCandidateFile(event.target.files?.[0] ?? null)}
-            />
-          </label>
-
-          <button type="button" className="button secondary" onClick={() => void verifyCandidate()}>
-            Verify candidate image
-          </button>
-
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => void decryptProtectedImage()}
-          >
-            Decrypt protected image
-          </button>
         </div>
 
         {record ? (
           <div className="result-card">
-            <h2>Manifest status</h2>
+            <h2>Ready to unlock</h2>
             <p className="lede">
               {record.manifestVerified ? "Server signature valid." : "Server signature invalid."}
             </p>
             <p className="lede">Watermark label: {record.manifest.watermarkLabel}</p>
             <p className="lede">Created: {record.manifest.createdAt}</p>
+            <label className="field">
+              <span>Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button primary"
+              onClick={() => void decryptProtectedImage()}
+            >
+              Unlock image and authenticate
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => setShowManualCompare((current) => !current)}
+            >
+              {showManualCompare ? "Hide manual compare" : "Compare another file"}
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void decryptBundle()}
+            >
+              Show provenance bundle
+            </button>
+          </div>
+        ) : null}
+
+        {record && showManualCompare ? (
+          <div className="result-card">
+            <h2>Manual compare</h2>
+            <p className="lede">
+              Optional: upload another image file to check whether it matches the
+              signed protected image.
+            </p>
+            <label className="field">
+              <span>Candidate image</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic"
+                onChange={(event) => setCandidateFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <button type="button" className="button secondary" onClick={() => void verifyCandidate()}>
+              Verify uploaded file
+            </button>
           </div>
         ) : null}
 
@@ -229,8 +261,14 @@ export function VerifyProofForm() {
       </section>
 
       <section className="panel">
-        <p className="eyebrow">Protected provenance</p>
-        <h2>Protected image and bundle</h2>
+        <p className="eyebrow">Result</p>
+        <h2>Unlocked image</h2>
+        {!record ? (
+          <p className="lede">
+            Open a proof link or load a proof id first. Then enter the password
+            to reveal the protected image.
+          </p>
+        ) : null}
         {protectedPreviewUrl ? (
           <Image
             src={protectedPreviewUrl}
@@ -241,7 +279,7 @@ export function VerifyProofForm() {
             unoptimized
           />
         ) : null}
-        {previewUrl ? (
+        {showManualCompare && previewUrl ? (
           <Image
             src={previewUrl}
             alt="Candidate preview"
@@ -251,23 +289,7 @@ export function VerifyProofForm() {
             unoptimized
           />
         ) : null}
-
-        <div className="stack">
-          <label className="field">
-            <span>Password</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-
-          <button type="button" className="button secondary" onClick={() => void decryptBundle()}>
-            Decrypt private bundle
-          </button>
-        </div>
-
-        {decryptedBundle ? <pre className="code-block">{decryptedBundle}</pre> : null}
+        {showBundle && decryptedBundle ? <pre className="code-block">{decryptedBundle}</pre> : null}
       </section>
     </div>
   );
