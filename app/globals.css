@@ -231,11 +231,19 @@ li + li {
   background: rgba(255, 255, 255, 0.45);
 }
 
-.map-frame iframe {
+.leaflet-map {
   width: 100%;
   height: 260px;
-  border: 0;
-  display: block;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 0.68rem;
 }
 
 .code-block {

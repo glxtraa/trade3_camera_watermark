@@ -9,6 +9,7 @@ import {
   canonicalizeValue,
   buildVisibleExifLines
 } from "@/lib/proof/canonical";
+import { LocationPreviewMap } from "@/components/location-preview-map";
 import type { EncryptedBinaryAsset } from "@/lib/proof/types";
 import { sha256Hex } from "@/lib/proof/hash";
 import { createWatermarkedJpeg } from "@/lib/proof/watermark";
@@ -463,14 +464,10 @@ export function CreateProofForm() {
               </p>
             )}
             <div className="map-frame">
-              <iframe
-                title="OpenStreetMap location preview"
-                src={buildOpenStreetMapEmbedUrl(
-                  liveLocation.latitude,
-                  liveLocation.longitude,
-                  liveLocation.accuracy
-                )}
-                loading="lazy"
+              <LocationPreviewMap
+                latitude={liveLocation.latitude}
+                longitude={liveLocation.longitude}
+                accuracy={liveLocation.accuracy}
               />
             </div>
             <a
@@ -510,18 +507,6 @@ export function CreateProofForm() {
       </section>
     </div>
   );
-}
-
-function buildOpenStreetMapEmbedUrl(latitude: number, longitude: number, accuracyMeters: number) {
-  const radius = Math.max(accuracyMeters, 35);
-  const latDelta = radius / 111320;
-  const lonDelta = radius / (111320 * Math.max(Math.cos((latitude * Math.PI) / 180), 0.2));
-  const left = longitude - lonDelta;
-  const right = longitude + lonDelta;
-  const top = latitude + latDelta;
-  const bottom = latitude - latDelta;
-
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${latitude}%2C${longitude}`;
 }
 
 function buildOpenStreetMapOpenUrl(latitude: number, longitude: number) {
