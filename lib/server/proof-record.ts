@@ -84,15 +84,14 @@ export async function createProofRecord(input: CreateProofInput) {
     }
   };
 
-  const manifestAsset = await putJson(`proofs/${id}/manifest.json`, manifest, "public");
-
   let ipfsManifestUrl: string | null = null;
   if (input.uploadToIpfs && manifest.mirrors?.ipfs) {
     const ipfsManifest = await pinJsonToIpfs(`${id}-manifest.json`, manifest);
     manifest.mirrors.ipfs.manifest = ipfsManifest;
     ipfsManifestUrl = ipfsManifest.locator;
-    await putJson(`proofs/${id}/manifest.json`, manifest, "public");
   }
+
+  const manifestAsset = await putJson(`proofs/${id}/manifest.json`, manifest, "public");
 
   return {
     id,
