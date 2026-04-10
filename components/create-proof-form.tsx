@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ExifReader from "exifreader";
 import { getEncryptionProvider } from "@/lib/crypto/encryption";
 import {
@@ -22,6 +22,7 @@ interface ResultState {
 }
 
 export function CreateProofForm() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [watermarkLabel, setWatermarkLabel] = useState("Trade3 Authentic");
   const [password, setPassword] = useState("");
@@ -69,6 +70,10 @@ export function CreateProofForm() {
 
     return lines;
   }, [liveLocation]);
+  const combinedMetadataLines = useMemo(
+    () => [...metadataPreview, ...runtimeMetadataLines],
+    [metadataPreview, runtimeMetadataLines]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -191,10 +196,13 @@ export function CreateProofForm() {
 
     try {
       const exifTags = await ExifReader.load(file, { expanded: true });
-      const visibleExifLines = [
-        ...buildVisibleExifLines(exifTags as unknown as Record<string, unknown>),
-        ...runtimeMetadataLines
-      ];
+      const visibleExifLines =
+        combinedMetadataLines.length > 0
+          ? combinedMetadataLines
+          : [
+              ...buildVisibleExifLines(exifTags as unknown as Record<string, unknown>),
+              ...runtimeMetadataLines
+            ];
       const exifSubset = normalizeExifSubset({
         ...(exifTags.exif ?? {}),
         ...(exifTags.gps ?? {})
@@ -292,17 +300,29 @@ export function CreateProofForm() {
         </p>
 
         <form onSubmit={handleSubmit} className="stack">
-          <label className="field">
+          <div className="field">
             <span>Take picture</span>
             <input
+              ref={fileInputRef}
+              className="visually-hidden"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/heic"
               capture="environment"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
-          </label>
+            <button
+              type="button"
+              className="button primary"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Take picture
+            </button>
+            <p className="field-hint">
+              {file ? `Selected: ${file.name}` : "This opens the camera first on mobile."}
+            </p>
+          </div>
           <p className="field-hint">
-            On mobile this opens the camera first. You can still choose an existing image if needed.
+            You can still choose an existing image if needed.
           </p>
 
           <label className="field">
@@ -350,15 +370,15 @@ export function CreateProofForm() {
         {!previewUrl ? <p className="lede">No picture captured yet.</p> : null}
         {metadataStatus ? <p className="status">{metadataStatus}</p> : null}
         {locationStatus ? <p className="status">{locationStatus}</p> : null}
-        {metadataPreview.length ? (
+        {combinedMetadataLines.length ? (
           <div className="result-card">
-            <h2>Metadata found immediately after capture</h2>
+            <h2>EXIF and live metadata found immediately after capture</h2>
             <ul className="meta-list">
-              {[...metadataPreview, ...runtimeMetadataLines].map((line) => (
+              {combinedMetadataLines.map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
-            {![...metadataPreview, ...runtimeMetadataLines].some((line) => line.includes("GPS")) ? (
+            {!combinedMetadataLines.some((line) => line.includes("GPS")) ? (
               <p className="lede">
                 GPS was not found in this file. That usually means location data
                 was not saved by the camera or was stripped before upload.

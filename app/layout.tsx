@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Trade3 Proof Camera",
-  description: "Mobile-first provenance capture and verification."
+  description: "Trade3 mobile-first provenance capture and verification."
 };
 
 export default function RootLayout({

@@ -1,9 +1,9 @@
 export const currentEncryptionMode = "password-based AES-GCM bundle encryption";
-export const currentStorageMode = "Vercel Blob + Vercel manifest registry";
+export const currentStorageMode = "Protected Trade3 proof storage";
 export const currentVerificationMode = "signed manifest plus deterministic hashing";
 
 export const appCapabilities = [
-  "Mobile camera capture in a Vercel-hosted web app",
+  "Mobile camera capture in the Trade3 proof app",
   "Visible watermark generation for a shareable derivative",
   "EXIF-derived provenance capture from the original file",
   "Password-protected private provenance bundle",

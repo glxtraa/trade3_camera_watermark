@@ -6,7 +6,7 @@ export default function HomePage() {
     <main className="shell">
       <section className="hero">
         <p className="eyebrow">Trade3 Proof Camera</p>
-        <h1>Vercel-first image authenticity, built to evolve later.</h1>
+        <h1>Trade3 image authenticity, built to evolve.</h1>
         <p className="lede">
           Take a photo, protect it with a password, and share one verification
           link. The recipient opens the link, enters the password, and the app
