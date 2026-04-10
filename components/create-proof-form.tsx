@@ -39,6 +39,10 @@ export function CreateProofForm() {
     capturedAt: string;
   } | null>(null);
   const [locationStatus, setLocationStatus] = useState<string | null>(null);
+  const [reverseLocation, setReverseLocation] = useState<{
+    displayName: string | null;
+  } | null>(null);
+  const [reverseLocationStatus, setReverseLocationStatus] = useState<string | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const shareUrl = useMemo(() => {
@@ -63,13 +67,17 @@ export function CreateProofForm() {
       lines.push(`GPS captured: ${liveLocation.capturedAt}`);
     }
 
+    if (reverseLocation?.displayName) {
+      lines.push(`Address: ${reverseLocation.displayName}`);
+    }
+
     const deviceLine = getDeviceContextLine();
     if (deviceLine) {
       lines.push(deviceLine);
     }
 
     return lines;
-  }, [liveLocation]);
+  }, [liveLocation, reverseLocation]);
   const combinedMetadataLines = useMemo(
     () => [...metadataPreview, ...runtimeMetadataLines],
     [metadataPreview, runtimeMetadataLines]
@@ -82,6 +90,8 @@ export function CreateProofForm() {
       if (!file) {
         setMetadataPreview([]);
         setMetadataStatus(null);
+        setReverseLocation(null);
+        setReverseLocationStatus(null);
         return;
       }
 
@@ -125,6 +135,8 @@ export function CreateProofForm() {
       if (!file) {
         setLiveLocation(null);
         setLocationStatus(null);
+        setReverseLocation(null);
+        setReverseLocationStatus(null);
         return;
       }
 
@@ -176,6 +188,60 @@ export function CreateProofForm() {
       cancelled = true;
     };
   }, [file]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function reverseGeocodeLiveLocation() {
+      if (!liveLocation) {
+        setReverseLocation(null);
+        setReverseLocationStatus(null);
+        return;
+      }
+
+      setReverseLocationStatus("Looking up the nearest OpenStreetMap address...");
+
+      try {
+        const response = await fetch(
+          `/api/location/reverse?lat=${encodeURIComponent(String(liveLocation.latitude))}&lon=${encodeURIComponent(String(liveLocation.longitude))}`,
+          { cache: "no-store" }
+        );
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Reverse geocoding failed.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setReverseLocation({
+          displayName: payload.displayName ?? null
+        });
+        setReverseLocationStatus(
+          payload.displayName
+            ? "Nearest OpenStreetMap address found and added to the watermark."
+            : "No nearby OpenStreetMap address was found for this location."
+        );
+      } catch (reverseError) {
+        if (cancelled) {
+          return;
+        }
+
+        setReverseLocation(null);
+        setReverseLocationStatus(
+          reverseError instanceof Error ? reverseError.message : "Reverse geocoding unavailable."
+        );
+      }
+    }
+
+    void reverseGeocodeLiveLocation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [liveLocation]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -370,6 +436,7 @@ export function CreateProofForm() {
         {!previewUrl ? <p className="lede">No picture captured yet.</p> : null}
         {metadataStatus ? <p className="status">{metadataStatus}</p> : null}
         {locationStatus ? <p className="status">{locationStatus}</p> : null}
+        {reverseLocationStatus ? <p className="status">{reverseLocationStatus}</p> : null}
         {combinedMetadataLines.length ? (
           <div className="result-card">
             <h2>EXIF and live metadata found immediately after capture</h2>
@@ -384,6 +451,41 @@ export function CreateProofForm() {
                 was not saved by the camera or was stripped before upload.
               </p>
             ) : null}
+          </div>
+        ) : null}
+        {liveLocation ? (
+          <div className="result-card">
+            <h2>Location preview</h2>
+            <p className="lede">
+              Confidence area: approximately {Math.round(liveLocation.accuracy)} meters from the
+              captured point.
+            </p>
+            {reverseLocation?.displayName ? (
+              <p className="lede">Possible address: {reverseLocation.displayName}</p>
+            ) : (
+              <p className="lede">
+                Possible address is not available yet. The map still shows the captured area.
+              </p>
+            )}
+            <div className="map-frame">
+              <iframe
+                title="OpenStreetMap location preview"
+                src={buildOpenStreetMapEmbedUrl(
+                  liveLocation.latitude,
+                  liveLocation.longitude,
+                  liveLocation.accuracy
+                )}
+                loading="lazy"
+              />
+            </div>
+            <a
+              className="button secondary"
+              href={buildOpenStreetMapOpenUrl(liveLocation.latitude, liveLocation.longitude)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open in OpenStreetMap
+            </a>
           </div>
         ) : null}
 
@@ -413,6 +515,22 @@ export function CreateProofForm() {
       </section>
     </div>
   );
+}
+
+function buildOpenStreetMapEmbedUrl(latitude: number, longitude: number, accuracyMeters: number) {
+  const radius = Math.max(accuracyMeters, 35);
+  const latDelta = radius / 111320;
+  const lonDelta = radius / (111320 * Math.max(Math.cos((latitude * Math.PI) / 180), 0.2));
+  const left = longitude - lonDelta;
+  const right = longitude + lonDelta;
+  const top = latitude + latDelta;
+  const bottom = latitude - latDelta;
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+}
+
+function buildOpenStreetMapOpenUrl(latitude: number, longitude: number) {
+  return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=18/${latitude}/${longitude}`;
 }
 
 function getDeviceContextLine() {
