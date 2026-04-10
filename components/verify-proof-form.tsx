@@ -3,9 +3,14 @@
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { LocationPreviewMap } from "@/components/location-preview-map";
 import { getEncryptionProvider, type EncryptedBundle } from "@/lib/crypto/encryption";
 import { sha256Hex } from "@/lib/proof/hash";
-import type { EncryptedBinaryAsset, PublicProofManifest } from "@/lib/proof/types";
+import type {
+  EncryptedBinaryAsset,
+  PrivateProvenanceBundle,
+  PublicProofManifest
+} from "@/lib/proof/types";
 
 interface LoadedRecord {
   manifest: PublicProofManifest;
@@ -25,9 +30,12 @@ export function VerifyProofForm() {
   const [verificationResult, setVerificationResult] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [decryptedBundle, setDecryptedBundle] = useState<string | null>(null);
+  const [decryptedBundleData, setDecryptedBundleData] = useState<PrivateProvenanceBundle | null>(null);
   const [protectedPreviewUrl, setProtectedPreviewUrl] = useState<string | null>(null);
   const [showManualCompare, setShowManualCompare] = useState(false);
   const [showBundle, setShowBundle] = useState(false);
+  const [reverseLocation, setReverseLocation] = useState<string | null>(null);
+  const [reverseLocationStatus, setReverseLocationStatus] = useState<string | null>(null);
 
   const previewUrl = useMemo(
     () => (candidateFile ? URL.createObjectURL(candidateFile) : null),
@@ -46,7 +54,10 @@ export function VerifyProofForm() {
     setError(null);
     setVerificationResult(null);
     setDecryptedBundle(null);
+    setDecryptedBundleData(null);
     setProtectedPreviewUrl(null);
+    setReverseLocation(null);
+    setReverseLocationStatus(null);
 
     try {
       const response = manifest
@@ -121,6 +132,7 @@ export function VerifyProofForm() {
       const payload = (await response.json()) as EncryptedBundle;
       const decrypted = await getEncryptionProvider("password-aes-gcm").decrypt(payload, password);
 
+      setDecryptedBundleData(decrypted);
       setDecryptedBundle(JSON.stringify(decrypted, null, 2));
       setShowBundle(true);
       setStatus("Private bundle decrypted.");
@@ -131,6 +143,64 @@ export function VerifyProofForm() {
       );
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function reverseGeocodeDecryptedLocation() {
+      const location = decryptedBundleData?.context?.liveLocation as
+        | { latitude?: number; longitude?: number }
+        | undefined;
+
+      if (
+        !location ||
+        typeof location.latitude !== "number" ||
+        typeof location.longitude !== "number"
+      ) {
+        setReverseLocation(null);
+        setReverseLocationStatus(null);
+        return;
+      }
+
+      setReverseLocationStatus("Looking up the unlocked proof location...");
+
+      try {
+        const response = await fetch(
+          `/api/location/reverse?lat=${encodeURIComponent(String(location.latitude))}&lon=${encodeURIComponent(String(location.longitude))}`,
+          { cache: "no-store" }
+        );
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Reverse geocoding failed.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setReverseLocation(payload.displayName ?? null);
+        setReverseLocationStatus(
+          payload.displayName ? "Possible location resolved from the unlocked proof." : null
+        );
+      } catch (reverseError) {
+        if (cancelled) {
+          return;
+        }
+
+        setReverseLocation(null);
+        setReverseLocationStatus(
+          reverseError instanceof Error ? reverseError.message : "Location lookup unavailable."
+        );
+      }
+    }
+
+    void reverseGeocodeDecryptedLocation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [decryptedBundleData]);
 
   async function decryptProtectedImage() {
     if (!record) {
@@ -303,6 +373,37 @@ export function VerifyProofForm() {
             className="preview"
             unoptimized
           />
+        ) : null}
+        {decryptedBundleData?.context?.liveLocation ? (
+          <div className="result-card">
+            <h2>Unlocked location</h2>
+            <p className="lede">
+              Confidence area: approximately{" "}
+              {Math.round(
+                Number(
+                  (decryptedBundleData.context.liveLocation as { accuracy?: number }).accuracy ?? 0
+                )
+              )}{" "}
+              meters from the captured point.
+            </p>
+            {reverseLocation ? (
+              <p className="lede">Possible address: {reverseLocation}</p>
+            ) : null}
+            {reverseLocationStatus ? <p className="status">{reverseLocationStatus}</p> : null}
+            <div className="map-frame">
+              <LocationPreviewMap
+                latitude={Number(
+                  (decryptedBundleData.context.liveLocation as { latitude: number }).latitude
+                )}
+                longitude={Number(
+                  (decryptedBundleData.context.liveLocation as { longitude: number }).longitude
+                )}
+                accuracy={Number(
+                  (decryptedBundleData.context.liveLocation as { accuracy?: number }).accuracy ?? 20
+                )}
+              />
+            </div>
+          </div>
         ) : null}
         {showBundle && decryptedBundle ? <pre className="code-block">{decryptedBundle}</pre> : null}
       </section>

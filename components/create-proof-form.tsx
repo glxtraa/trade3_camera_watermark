@@ -457,6 +457,33 @@ export function CreateProofForm() {
 
         {status ? <p className="status">{status}</p> : null}
         {error ? <p className="error">{error}</p> : null}
+        {result ? (
+          <div className="result-card">
+            <h2>Send this link next</h2>
+            <p className="lede">
+              The proof has been created. Share this link with the recipient and
+              send the password separately.
+            </p>
+            <label className="field">
+              <span>Verification link</span>
+              <input type="text" readOnly value={shareUrl} />
+            </label>
+            <div className="actions">
+              <button type="button" className="button primary" onClick={() => void handleShareLink()}>
+                Share link
+              </button>
+              <button type="button" className="button secondary" onClick={() => void handleCopyLink()}>
+                {copied ? "Copied" : "Copy link"}
+              </button>
+            </div>
+            <p className="lede">Record id: {result.id}</p>
+            {result.ipfsManifestUrl ? (
+              <a href={result.ipfsManifestUrl} className="button secondary" target="_blank" rel="noreferrer">
+                Open IPFS manifest
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="panel">
@@ -521,35 +548,6 @@ export function CreateProofForm() {
             >
               Open in OpenStreetMap
             </a>
-          </div>
-        ) : null}
-
-        {result ? (
-          <div className="result-card">
-            <h2>Send this link</h2>
-            <p className="lede">
-              Anyone with this link can open the proof page. Only someone with
-              the password can unlock and authenticate the image.
-            </p>
-            <label className="field">
-              <span>Verification link</span>
-              <input type="text" readOnly value={shareUrl} />
-            </label>
-            <div className="actions">
-              <button type="button" className="button primary" onClick={() => void handleShareLink()}>
-                Share link
-              </button>
-              <button type="button" className="button secondary" onClick={() => void handleCopyLink()}>
-                {copied ? "Copied" : "Copy link"}
-              </button>
-            </div>
-            <p className="lede">Send the password separately, not in the same message.</p>
-            <p className="lede">Record id: {result.id}</p>
-            {result.ipfsManifestUrl ? (
-              <a href={result.ipfsManifestUrl} className="button secondary" target="_blank" rel="noreferrer">
-                Open IPFS manifest
-              </a>
-            ) : null}
           </div>
         ) : null}
       </section>

@@ -59,18 +59,27 @@ export function LocationPreviewMap({
       const circle = leaflet.circle(point, {
         radius: Math.max(accuracy, 20),
         color: "#b04a2f",
+        weight: 3,
+        fillColor: "#b04a2f",
+        fillOpacity: 0.28
+      }).addTo(map);
+      const centerDot = leaflet.circleMarker(point, {
+        radius: 6,
+        color: "#ffffff",
         weight: 2,
         fillColor: "#b04a2f",
-        fillOpacity: 0.18
+        fillOpacity: 1
       }).addTo(map);
 
       map.fitBounds(circle.getBounds(), {
         padding: [18, 18]
       });
+      map.invalidateSize();
 
       return () => {
         map.removeLayer(marker);
         map.removeLayer(circle);
+        map.removeLayer(centerDot);
       };
     }
 
