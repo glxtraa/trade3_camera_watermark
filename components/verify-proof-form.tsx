@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LocationPreviewMap } from "@/components/location-preview-map";
 import { getEncryptionProvider, type EncryptedBundle } from "@/lib/crypto/encryption";
 import { sha256Hex } from "@/lib/proof/hash";
 import type {
@@ -11,6 +11,13 @@ import type {
   PrivateProvenanceBundle,
   PublicProofManifest
 } from "@/lib/proof/types";
+
+const LocationPreviewMap = dynamic(
+  () => import("@/components/location-preview-map").then((module) => module.LocationPreviewMap),
+  {
+    ssr: false
+  }
+);
 
 interface LoadedRecord {
   manifest: PublicProofManifest;

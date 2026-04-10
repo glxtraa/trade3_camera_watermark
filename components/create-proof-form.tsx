@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import ExifReader from "exifreader";
@@ -9,11 +10,17 @@ import {
   canonicalizeValue,
   buildVisibleExifLines
 } from "@/lib/proof/canonical";
-import { LocationPreviewMap } from "@/components/location-preview-map";
 import type { EncryptedBinaryAsset } from "@/lib/proof/types";
 import { sha256Hex } from "@/lib/proof/hash";
 import { createWatermarkedJpeg } from "@/lib/proof/watermark";
 import type { PrivateProvenanceBundle } from "@/lib/proof/types";
+
+const LocationPreviewMap = dynamic(
+  () => import("@/components/location-preview-map").then((module) => module.LocationPreviewMap),
+  {
+    ssr: false
+  }
+);
 
 interface ResultState {
   id: string;
