@@ -20,6 +20,7 @@ interface ResultState {
   verifyUrl: string;
   manifestUrl: string;
   protectedImageUrl: string;
+  ipfsManifestUrl: string | null;
 }
 
 export function CreateProofForm() {
@@ -30,6 +31,7 @@ export function CreateProofForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [uploadToIpfs, setUploadToIpfs] = useState(false);
   const [metadataPreview, setMetadataPreview] = useState<string[]>([]);
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null);
   const [liveLocation, setLiveLocation] = useState<{
@@ -308,6 +310,7 @@ export function CreateProofForm() {
       formData.set("watermarkedImageHash", watermarkedImageHash);
       formData.set("exifSubsetHash", exifSubsetHash);
       formData.set("watermarkLabel", watermarkLabel);
+      formData.set("uploadToIpfs", String(uploadToIpfs));
 
       const response = await fetch("/api/proofs", {
         method: "POST",
@@ -407,6 +410,20 @@ export function CreateProofForm() {
             />
           </label>
 
+          <label className="toggle-field">
+            <input
+              type="checkbox"
+              checked={uploadToIpfs}
+              onChange={(event) => setUploadToIpfs(event.target.checked)}
+            />
+            <span>Also pin encrypted proof assets to IPFS</span>
+          </label>
+          {uploadToIpfs ? (
+            <p className="field-hint">
+              This keeps the normal Trade3 storage flow and also sends encrypted assets to IPFS.
+            </p>
+          ) : null}
+
           <button type="submit" className="button primary">
             Create proof
           </button>
@@ -502,6 +519,11 @@ export function CreateProofForm() {
             </div>
             <p className="lede">Send the password separately, not in the same message.</p>
             <p className="lede">Record id: {result.id}</p>
+            {result.ipfsManifestUrl ? (
+              <a href={result.ipfsManifestUrl} className="button secondary" target="_blank" rel="noreferrer">
+                Open IPFS manifest
+              </a>
+            ) : null}
           </div>
         ) : null}
       </section>

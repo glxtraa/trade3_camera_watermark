@@ -40,6 +40,13 @@ export interface PublicProofManifest {
     watermarkedAsset: StorageDescriptor;
     encryptedBundle: StorageDescriptor;
   };
+  mirrors?: {
+    ipfs?: {
+      watermarkedAsset: StorageDescriptor;
+      encryptedBundle: StorageDescriptor;
+      manifest?: StorageDescriptor;
+    };
+  };
   signature: SignatureEnvelope;
   chain: {
     kind: ChainKind;

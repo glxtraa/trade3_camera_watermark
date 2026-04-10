@@ -1,6 +1,7 @@
 import path from "node:path";
 import { list } from "@vercel/blob";
 import { putAsset, putJson, readAsset, readJson } from "@/lib/server/blob-store";
+import { pinJsonToIpfs } from "@/lib/server/ipfs";
 import { manifestPayloadForSigning } from "@/lib/proof/canonical";
 import type { EncryptedBinaryAsset, PublicProofManifest } from "@/lib/proof/types";
 import { signManifestPayload, verifyManifestPayload } from "@/lib/server/signature";
@@ -24,6 +25,7 @@ export interface CreateProofInput {
     };
   };
   encryptedWatermarkedAsset: EncryptedBinaryAsset;
+  uploadToIpfs?: boolean;
 }
 
 export async function createProofRecord(input: CreateProofInput) {
@@ -51,10 +53,26 @@ export async function createProofRecord(input: CreateProofInput) {
       watermarkedAsset,
       encryptedBundle
     },
+    mirrors: undefined as PublicProofManifest["mirrors"],
     chain: {
       kind: "none" as const
     }
   };
+
+  if (input.uploadToIpfs) {
+    const ipfsWatermarkedAsset = await pinJsonToIpfs(
+      `${id}-watermarked.json`,
+      input.encryptedWatermarkedAsset
+    );
+    const ipfsEncryptedBundle = await pinJsonToIpfs(`${id}-bundle.json`, input.encryptedBundle);
+
+    unsignedManifest.mirrors = {
+      ipfs: {
+        watermarkedAsset: ipfsWatermarkedAsset,
+        encryptedBundle: ipfsEncryptedBundle
+      }
+    };
+  }
 
   const payload = manifestPayloadForSigning(unsignedManifest);
   const manifest: PublicProofManifest = {
@@ -68,11 +86,20 @@ export async function createProofRecord(input: CreateProofInput) {
 
   const manifestAsset = await putJson(`proofs/${id}/manifest.json`, manifest, "public");
 
+  let ipfsManifestUrl: string | null = null;
+  if (input.uploadToIpfs && manifest.mirrors?.ipfs) {
+    const ipfsManifest = await pinJsonToIpfs(`${id}-manifest.json`, manifest);
+    manifest.mirrors.ipfs.manifest = ipfsManifest;
+    ipfsManifestUrl = ipfsManifest.locator;
+    await putJson(`proofs/${id}/manifest.json`, manifest, "public");
+  }
+
   return {
     id,
     verifyUrl: `/verify?id=${id}`,
     manifestUrl: manifestAsset.locator,
-    protectedImageUrl: `/api/proofs/${id}/watermarked`
+    protectedImageUrl: `/api/proofs/${id}/watermarked`,
+    ipfsManifestUrl
   };
 }
 

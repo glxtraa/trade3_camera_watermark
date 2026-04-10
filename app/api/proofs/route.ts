@@ -11,6 +11,7 @@ export async function POST(request: Request) {
     const watermarkedImageHash = formData.get("watermarkedImageHash");
     const exifSubsetHash = formData.get("exifSubsetHash");
     const watermarkLabel = formData.get("watermarkLabel");
+    const uploadToIpfs = formData.get("uploadToIpfs");
 
     if (
       typeof encryptedBundle !== "string" ||
@@ -29,7 +30,8 @@ export async function POST(request: Request) {
       originalImageHash,
       watermarkedImageHash,
       exifSubsetHash,
-      watermarkLabel
+      watermarkLabel,
+      uploadToIpfs: uploadToIpfs === "true"
     });
 
     return NextResponse.json(result);

@@ -43,3 +43,6 @@ Required for deployment:
 - `BLOB_READ_WRITE_TOKEN`
 
 Without a Blob token, local development falls back to `/tmp/trade3-camera-watermark` storage.
+
+Optional for IPFS pinning:
+- `PINATA_JWT`

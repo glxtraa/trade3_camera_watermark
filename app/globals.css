@@ -170,6 +170,18 @@ li + li {
   color: var(--ink);
 }
 
+.toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--ink);
+}
+
+.toggle-field input {
+  width: 1rem;
+  height: 1rem;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
