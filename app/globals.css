@@ -119,6 +119,10 @@ h2 {
   cursor: pointer;
 }
 
+.button-label {
+  width: fit-content;
+}
+
 .primary {
   background: var(--accent);
   color: #fff9f5;

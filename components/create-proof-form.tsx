@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ExifReader from "exifreader";
 import { getEncryptionProvider } from "@/lib/crypto/encryption";
 import {
@@ -22,7 +22,6 @@ interface ResultState {
 }
 
 export function CreateProofForm() {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [watermarkLabel, setWatermarkLabel] = useState("Trade3 Authentic");
   const [password, setPassword] = useState("");
@@ -369,20 +368,16 @@ export function CreateProofForm() {
           <div className="field">
             <span>Take picture</span>
             <input
-              ref={fileInputRef}
+              id="trade3-capture-input"
               className="visually-hidden"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/heic"
               capture="environment"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => fileInputRef.current?.click()}
-            >
+            <label htmlFor="trade3-capture-input" className="button primary button-label">
               Take picture
-            </button>
+            </label>
             <p className="field-hint">
               {file ? `Selected: ${file.name}` : "This opens the camera first on mobile."}
             </p>
