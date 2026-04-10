@@ -25,21 +25,21 @@ export interface CreateProofInput {
     };
   };
   encryptedWatermarkedAsset: EncryptedBinaryAsset;
-  uploadToIpfs?: boolean;
+  storageMode?: "trade3" | "trade3-ipfs-mirror" | "ipfs-only";
 }
 
 export async function createProofRecord(input: CreateProofInput) {
   const id = crypto.randomUUID();
-  const watermarkedAsset = await putJson(
-    `proofs/${id}/watermarked.json`,
-    input.encryptedWatermarkedAsset,
-    "public"
-  );
-  const encryptedBundle = await putJson(
-    `proofs/${id}/bundle.json`,
-    input.encryptedBundle,
-    "public"
-  );
+  const storageMode = input.storageMode ?? "trade3";
+  const useTrade3 = storageMode !== "ipfs-only";
+  const useIpfs = storageMode !== "trade3";
+
+  const watermarkedAsset = useTrade3
+    ? await putJson(`proofs/${id}/watermarked.json`, input.encryptedWatermarkedAsset, "public")
+    : await pinJsonToIpfs(`${id}-watermarked.json`, input.encryptedWatermarkedAsset);
+  const encryptedBundle = useTrade3
+    ? await putJson(`proofs/${id}/bundle.json`, input.encryptedBundle, "public")
+    : await pinJsonToIpfs(`${id}-bundle.json`, input.encryptedBundle);
 
   const unsignedManifest = {
     id,
@@ -59,7 +59,7 @@ export async function createProofRecord(input: CreateProofInput) {
     }
   };
 
-  if (input.uploadToIpfs) {
+  if (useIpfs && useTrade3) {
     const ipfsWatermarkedAsset = await pinJsonToIpfs(
       `${id}-watermarked.json`,
       input.encryptedWatermarkedAsset
@@ -85,19 +85,26 @@ export async function createProofRecord(input: CreateProofInput) {
   };
 
   let ipfsManifestUrl: string | null = null;
-  if (input.uploadToIpfs && manifest.mirrors?.ipfs) {
+  if (useIpfs) {
     const ipfsManifest = await pinJsonToIpfs(`${id}-manifest.json`, manifest);
-    manifest.mirrors.ipfs.manifest = ipfsManifest;
+    if (useTrade3 && manifest.mirrors?.ipfs) {
+      manifest.mirrors.ipfs.manifest = ipfsManifest;
+    }
     ipfsManifestUrl = ipfsManifest.locator;
-  }
+  } 
 
-  const manifestAsset = await putJson(`proofs/${id}/manifest.json`, manifest, "public");
+  const manifestAsset = useTrade3
+    ? await putJson(`proofs/${id}/manifest.json`, manifest, "public")
+    : null;
 
   return {
     id,
-    verifyUrl: `/verify?id=${id}`,
-    manifestUrl: manifestAsset.locator,
-    protectedImageUrl: `/api/proofs/${id}/watermarked`,
+    verifyUrl:
+      useTrade3 || !ipfsManifestUrl
+        ? `/verify?id=${id}`
+        : `/verify?manifest=${encodeURIComponent(ipfsManifestUrl)}`,
+    manifestUrl: manifestAsset?.locator ?? ipfsManifestUrl,
+    protectedImageUrl: useTrade3 ? `/api/proofs/${id}/watermarked` : watermarkedAsset.locator,
     ipfsManifestUrl
   };
 }

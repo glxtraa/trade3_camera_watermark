@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const watermarkedImageHash = formData.get("watermarkedImageHash");
     const exifSubsetHash = formData.get("exifSubsetHash");
     const watermarkLabel = formData.get("watermarkLabel");
-    const uploadToIpfs = formData.get("uploadToIpfs");
+    const storageMode = formData.get("storageMode");
 
     if (
       typeof encryptedBundle !== "string" ||
@@ -31,7 +31,10 @@ export async function POST(request: Request) {
       watermarkedImageHash,
       exifSubsetHash,
       watermarkLabel,
-      uploadToIpfs: uploadToIpfs === "true"
+      storageMode:
+        storageMode === "trade3-ipfs-mirror" || storageMode === "ipfs-only"
+          ? storageMode
+          : "trade3"
     });
 
     return NextResponse.json(result);

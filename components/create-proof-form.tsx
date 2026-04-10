@@ -23,6 +23,8 @@ interface ResultState {
   ipfsManifestUrl: string | null;
 }
 
+type StorageMode = "trade3" | "trade3-ipfs-mirror" | "ipfs-only";
+
 export function CreateProofForm() {
   const [file, setFile] = useState<File | null>(null);
   const [watermarkLabel, setWatermarkLabel] = useState("Trade3 Authentic");
@@ -31,7 +33,7 @@ export function CreateProofForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
   const [copied, setCopied] = useState(false);
-  const [uploadToIpfs, setUploadToIpfs] = useState(false);
+  const [storageMode, setStorageMode] = useState<StorageMode>("trade3");
   const [metadataPreview, setMetadataPreview] = useState<string[]>([]);
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null);
   const [liveLocation, setLiveLocation] = useState<{
@@ -310,7 +312,7 @@ export function CreateProofForm() {
       formData.set("watermarkedImageHash", watermarkedImageHash);
       formData.set("exifSubsetHash", exifSubsetHash);
       formData.set("watermarkLabel", watermarkLabel);
-      formData.set("uploadToIpfs", String(uploadToIpfs));
+      formData.set("storageMode", storageMode);
 
       const response = await fetch("/api/proofs", {
         method: "POST",
@@ -410,19 +412,43 @@ export function CreateProofForm() {
             />
           </label>
 
-          <label className="toggle-field">
-            <input
-              type="checkbox"
-              checked={uploadToIpfs}
-              onChange={(event) => setUploadToIpfs(event.target.checked)}
-            />
-            <span>Also pin encrypted proof assets to IPFS</span>
-          </label>
-          {uploadToIpfs ? (
-            <p className="field-hint">
-              This keeps the normal Trade3 storage flow and also sends encrypted assets to IPFS.
-            </p>
-          ) : null}
+          <div className="field">
+            <span>Storage mode</span>
+            <label className="toggle-field">
+              <input
+                type="radio"
+                name="storage-mode"
+                checked={storageMode === "trade3"}
+                onChange={() => setStorageMode("trade3")}
+              />
+              <span>Trade3 only</span>
+            </label>
+            <label className="toggle-field">
+              <input
+                type="radio"
+                name="storage-mode"
+                checked={storageMode === "trade3-ipfs-mirror"}
+                onChange={() => setStorageMode("trade3-ipfs-mirror")}
+              />
+              <span>Trade3 + IPFS mirror</span>
+            </label>
+            <label className="toggle-field">
+              <input
+                type="radio"
+                name="storage-mode"
+                checked={storageMode === "ipfs-only"}
+                onChange={() => setStorageMode("ipfs-only")}
+              />
+              <span>IPFS only</span>
+            </label>
+          </div>
+          <p className="field-hint">
+            {storageMode === "trade3"
+              ? "Encrypted proof stays on Trade3 storage only."
+              : storageMode === "trade3-ipfs-mirror"
+                ? "Trade3 remains primary and encrypted assets are also pinned to IPFS."
+                : "Encrypted assets and manifest are stored on IPFS only."}
+          </p>
 
           <button type="submit" className="button primary">
             Create proof

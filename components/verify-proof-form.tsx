@@ -15,7 +15,9 @@ interface LoadedRecord {
 export function VerifyProofForm() {
   const searchParams = useSearchParams();
   const initialId = searchParams.get("id") ?? "";
+  const initialManifestUrl = searchParams.get("manifest") ?? "";
   const [proofId, setProofId] = useState(initialId);
+  const [manifestUrl, setManifestUrl] = useState(initialManifestUrl);
   const [record, setRecord] = useState<LoadedRecord | null>(null);
   const [candidateFile, setCandidateFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -34,8 +36,9 @@ export function VerifyProofForm() {
 
   const loadRecord = useCallback(async (idOverride?: string) => {
     const id = (idOverride ?? proofId).trim();
-    if (!id) {
-      setError("Enter a proof id first.");
+    const manifest = manifestUrl.trim();
+    if (!id && !manifest) {
+      setError("Enter a proof id or manifest URL first.");
       return;
     }
 
@@ -46,7 +49,9 @@ export function VerifyProofForm() {
     setProtectedPreviewUrl(null);
 
     try {
-      const response = await fetch(`/api/proofs/${id}`);
+      const response = manifest
+        ? await fetch(`/api/proofs/resolve?manifestUrl=${encodeURIComponent(manifest)}`)
+        : await fetch(`/api/proofs/${id}`);
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.error || "Failed to load proof record.");
@@ -59,13 +64,13 @@ export function VerifyProofForm() {
       setStatus(null);
       setError(loadError instanceof Error ? loadError.message : "Failed to load proof record.");
     }
-  }, [proofId]);
+  }, [proofId, manifestUrl]);
 
   useEffect(() => {
-    if (initialId) {
+    if (initialId || initialManifestUrl) {
       void loadRecord(initialId);
     }
-  }, [initialId, loadRecord]);
+  }, [initialId, initialManifestUrl, loadRecord]);
 
   async function verifyCandidate() {
     if (!candidateFile || !record) {
@@ -106,7 +111,9 @@ export function VerifyProofForm() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/proofs/${record.manifest.id}/bundle`, { cache: "no-store" });
+      const response = await fetch(record.manifest.storage.encryptedBundle.locator, {
+        cache: "no-store"
+      });
       if (!response.ok) {
         throw new Error("Failed to fetch encrypted bundle.");
       }
@@ -140,7 +147,7 @@ export function VerifyProofForm() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/proofs/${record.manifest.id}/watermarked`, {
+      const response = await fetch(record.manifest.storage.watermarkedAsset.locator, {
         cache: "no-store"
       });
       if (!response.ok) {
@@ -186,6 +193,14 @@ export function VerifyProofForm() {
               type="text"
               value={proofId}
               onChange={(event) => setProofId(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Manifest URL</span>
+            <input
+              type="text"
+              value={manifestUrl}
+              onChange={(event) => setManifestUrl(event.target.value)}
             />
           </label>
 
