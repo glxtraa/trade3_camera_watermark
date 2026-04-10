@@ -31,6 +31,13 @@ export function CreateProofForm() {
   const [copied, setCopied] = useState(false);
   const [metadataPreview, setMetadataPreview] = useState<string[]>([]);
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null);
+  const [liveLocation, setLiveLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    capturedAt: string;
+  } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<string | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const shareUrl = useMemo(() => {
@@ -44,6 +51,24 @@ export function CreateProofForm() {
 
     return new URL(result.verifyUrl, window.location.origin).toString();
   }, [result]);
+  const runtimeMetadataLines = useMemo(() => {
+    const lines: string[] = [];
+
+    if (liveLocation) {
+      lines.push(
+        `Live GPS: ${liveLocation.latitude.toFixed(6)}, ${liveLocation.longitude.toFixed(6)}`
+      );
+      lines.push(`GPS accuracy: ${Math.round(liveLocation.accuracy)} m`);
+      lines.push(`GPS captured: ${liveLocation.capturedAt}`);
+    }
+
+    const deviceLine = getDeviceContextLine();
+    if (deviceLine) {
+      lines.push(deviceLine);
+    }
+
+    return lines;
+  }, [liveLocation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +113,65 @@ export function CreateProofForm() {
     };
   }, [file]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function captureLiveLocation() {
+      if (!file) {
+        setLiveLocation(null);
+        setLocationStatus(null);
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        setLiveLocation(null);
+        setLocationStatus("This browser does not support live location capture.");
+        return;
+      }
+
+      setLocationStatus("Requesting live location from the device...");
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 0
+          });
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setLiveLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          capturedAt: new Date(position.timestamp).toISOString()
+        });
+        setLocationStatus("Live device location captured and will be added to the watermark.");
+      } catch (locationError) {
+        if (cancelled) {
+          return;
+        }
+
+        setLiveLocation(null);
+        setLocationStatus(
+          locationError instanceof GeolocationPositionError
+            ? `Live location unavailable: ${formatGeolocationError(locationError)}`
+            : "Live location unavailable on this device/browser session."
+        );
+      }
+    }
+
+    void captureLiveLocation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -107,7 +191,10 @@ export function CreateProofForm() {
 
     try {
       const exifTags = await ExifReader.load(file, { expanded: true });
-      const visibleExifLines = buildVisibleExifLines(exifTags as unknown as Record<string, unknown>);
+      const visibleExifLines = [
+        ...buildVisibleExifLines(exifTags as unknown as Record<string, unknown>),
+        ...runtimeMetadataLines
+      ];
       const exifSubset = normalizeExifSubset({
         ...(exifTags.exif ?? {}),
         ...(exifTags.gps ?? {})
@@ -122,6 +209,10 @@ export function CreateProofForm() {
         originalFilename: file.name,
         capturedAt: exifSubset.dateTimeOriginal,
         exif: exifTags as unknown as Record<string, unknown>,
+        context: {
+          liveLocation,
+          device: getDeviceContextLine()
+        },
         notes: "MVP password-protected provenance bundle."
       };
 
@@ -258,15 +349,16 @@ export function CreateProofForm() {
         ) : null}
         {!previewUrl ? <p className="lede">No picture captured yet.</p> : null}
         {metadataStatus ? <p className="status">{metadataStatus}</p> : null}
+        {locationStatus ? <p className="status">{locationStatus}</p> : null}
         {metadataPreview.length ? (
           <div className="result-card">
             <h2>Metadata found immediately after capture</h2>
             <ul className="meta-list">
-              {metadataPreview.map((line) => (
+              {[...metadataPreview, ...runtimeMetadataLines].map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
-            {!metadataPreview.some((line) => line.startsWith("GPS:")) ? (
+            {![...metadataPreview, ...runtimeMetadataLines].some((line) => line.includes("GPS")) ? (
               <p className="lede">
                 GPS was not found in this file. That usually means location data
                 was not saved by the camera or was stripped before upload.
@@ -301,4 +393,45 @@ export function CreateProofForm() {
       </section>
     </div>
   );
+}
+
+function getDeviceContextLine() {
+  if (typeof navigator === "undefined") {
+    return undefined;
+  }
+
+  const ua = navigator.userAgent;
+  const isIphone = /iPhone/i.test(ua);
+  const isIpad = /iPad/i.test(ua);
+  const iosVersionMatch = ua.match(/OS (\d+[_\d]*) like Mac OS X/i);
+  const iosVersion = iosVersionMatch?.[1]?.replace(/_/g, ".");
+  const browser =
+    /CriOS/i.test(ua) ? "Chrome" :
+    /FxiOS/i.test(ua) ? "Firefox" :
+    /EdgiOS/i.test(ua) ? "Edge" :
+    /Safari/i.test(ua) ? "Safari" :
+    "Browser";
+
+  if (isIphone) {
+    return `Device: iPhone${iosVersion ? ` | iOS ${iosVersion}` : ""} | ${browser}`;
+  }
+
+  if (isIpad) {
+    return `Device: iPad${iosVersion ? ` | iPadOS ${iosVersion}` : ""} | ${browser}`;
+  }
+
+  return `Device: ${browser}`;
+}
+
+function formatGeolocationError(error: GeolocationPositionError) {
+  switch (error.code) {
+    case error.PERMISSION_DENIED:
+      return "permission denied";
+    case error.POSITION_UNAVAILABLE:
+      return "position unavailable";
+    case error.TIMEOUT:
+      return "request timed out";
+    default:
+      return "unknown error";
+  }
 }

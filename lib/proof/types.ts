@@ -51,6 +51,7 @@ export interface PrivateProvenanceBundle {
   originalFilename: string;
   capturedAt?: string;
   exif: Record<string, unknown>;
+  context?: Record<string, unknown>;
   notes?: string;
 }
 
